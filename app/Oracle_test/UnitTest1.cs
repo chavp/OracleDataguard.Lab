@@ -25,6 +25,7 @@ namespace Oracle_test
                 db.Open();
 
             }
+            
         }
 
         [TestMethod]

@@ -80,3 +80,4 @@ alter database add standby logfile group 7 ('/u01/app/oracle/oradata/ORCL_STB/st
 
 ALTER DATABASE RECOVER MANAGED STANDBY DATABASE CANCEL;
 alter system switch logfile;
+// enter / repeat last command
