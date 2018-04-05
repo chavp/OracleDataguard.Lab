@@ -81,3 +81,24 @@ alter database add standby logfile group 7 ('/u01/app/oracle/oradata/ORCL_STB/st
 ALTER DATABASE RECOVER MANAGED STANDBY DATABASE CANCEL;
 alter system switch logfile;
 // enter / repeat last command
+
+show parameter dg_broker_start
+alter system set dg_broker_start=true scope=both;
+
+// ทำ network เพิ่ม service database สำหรับ DG
+
+netmgr
+
+alter system set log_archive_dest_2='' scope=both;
+
+DGMGRL> connect sys/Oracle_01
+
+DGMGRL> create configuration 'DGConfig1' as primary database is 'orcl' connect identifier is orcl;
+DGMGRL> show configuration
+DGMGRL> add database 'orcl_stb' as connect identifier is orcl_stb;
+DGMGRL> enable configuration;
+
+DGMGRL> show database orcl
+DGMGRL> show database orcl_stb
+
+DGMGRL> EDIT DATABASE orcl SET PROPERTY LogXptMode=SYNC; 

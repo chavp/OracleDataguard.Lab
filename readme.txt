@@ -10,3 +10,4 @@ lsnrctl start
 
 // start database splplus
 sqlplus / as sysdba	
+
