@@ -1,0 +1,82 @@
+﻿. oraenv /u01/app/oracle/product/12.1.0/dbhome_1
+
+system
+Oracle_01
+--------------------------------------------------------------
+
+sqlplus / as sysdba
+
+
+startup nomount pfile='/u01/app/oracle/admin/orcl/pfile/init.ora'
+
+
+mount -t ramfs ramfs /dev/shm
+
+// copy password file
+scp /u01/app/oracle/product/12.1.0/dbhome_1/dbs/orapworcl oracle@stb:/u01/app/oracle/product/12.1.0/dbhome_1/dbs/orapworcl_stb
+
+alter system set standby_archive_dest='/u01/app/oracle/ORCL/arch' scope=both; -- prim
+
+alter system set standby_archive_dest='/u01/app/oracle/ORCL_STB/arch' scope=both; -- stb
+
+alter system set log_archive_config='dg_config=(orcl,orcl_stb)' scope=both;
+
+alter system set log_archive_dest_1='location=/u01/app/oracle/ORCL/arch 
+valid_for=(ALL_LOGFILES,ALL_ROLES) db_unique_name=orcl' scope=both;
+
+alter system set log_archive_dest_2='service=orcl_stb valid_for=(ONLINE_LOGFILES,PRIMARY_ROLE) db_unique_name=orcl_stb' LOG_ARCHIVE_DEST_STATE_2=ENABLE scope=both;
+
+alter system set fal_client='orcl_stb' scope=both;
+alter system set fal_server='orcl' scope=both;
+
+alter system set standby_file_management='AUTO' scope=both;
+
+alter database move datafile '/u01/app/oracle/oradata/mgmt_ad4j.dbf' 
+to '/u01/app/oracle/oradata/ORCL/datafile/mgmt_ad4j.dbf';
+
+alter database move datafile '/u01/app/oracle/oradata/mgmt.dbf' 
+to '/u01/app/oracle/oradata/ORCL/datafile/mgmt.dbf';
+
+alter database move datafile '/u01/app/oracle/oradata/mgmt_depot.dbf' 
+to '/u01/app/oracle/oradata/ORCL/datafile/mgmt_depot.dbf';
+
+// conect ทั้งสองที่
+rman target sys/Oracle_01@orcl auxiliary sys/Oracle_01@orcl_stb
+
+run {
+    allocate channel prmy1 type disk;
+    allocate channel prmy2 type disk;
+    allocate auxiliary channel stby type disk;
+    duplicate target database for standby from active database
+spfile
+  parameter_value_convert 'orcl','orcl_stb'
+  set db_unique_name='orcl_stb'
+  set db_file_name_convert='/u01/app/oracle/oradata/ORCL/datafile/','/u01/app/oracle/oradata/ORCL_STB/datafile/'
+  set log_file_name_convert='/u01/app/oracle/oradata/ORCL/onlinelog/','/u01/app/oracle/oradata/ORCL_STB/onlinelog/'
+  set control_files='/u01/app/oracle/oradata/ORCL_STB/controlfile/control_stb1.ctl','/u01/app/oracle/fast_recovery_area/ORCL_STB/controlfile/control_stb2.ctl'
+  set log_archive_max_processes='5'
+  set memory_target='1500M'
+  set fal_client='orcl_stb'
+  set fal_server='orcl'
+  set standby_file_management='AUTO'
+  set log_archive_config='dg_config=(orcl,orcl_stb)'
+  set log_archive_dest_1='service=orcl ASYNC valid_for=(ONLINE_LOGFILE,PRIMARY_ROLE) db_unique_name=orcl';
+}
+
+ALTER DATABASE RECOVER MANAGED STANDBY DATABASE USING CURRENT LOGFILE DISCONNECT FROM SESSION;
+
+select sequence#,applied from v$archived_log order by 2;
+select group#, type, member from v$logfile where type='STANDBY';
+
+alter database drop standby logfile group 4;
+alter database drop standby logfile group 5;
+alter database drop standby logfile group 6;
+alter database drop standby logfile group 7;
+
+alter database add standby logfile group 4 ('/u01/app/oracle/oradata/ORCL_STB/stb_log/stb_redo04.log') size 100m reuse;
+alter database add standby logfile group 5 ('/u01/app/oracle/oradata/ORCL_STB/stb_log/stb_redo05.log') size 100m reuse;
+alter database add standby logfile group 6 ('/u01/app/oracle/oradata/ORCL_STB/stb_log/stb_redo06.log') size 100m reuse;
+alter database add standby logfile group 7 ('/u01/app/oracle/oradata/ORCL_STB/stb_log/stb_redo07.log') size 100m reuse;
+
+ALTER DATABASE RECOVER MANAGED STANDBY DATABASE CANCEL;
+alter system switch logfile;
